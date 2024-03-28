@@ -1,0 +1,3 @@
+interface Openable {
+    fun open()
+}

@@ -1,14 +1,11 @@
-import java.io.File
-
-class Archive(name: String) : MyFile(name) {
-    var notes = mutableListOf<Note>()
+class Archive(var name: String, var notes: MutableList<Note> = mutableListOf()) : Openable {
     override fun open() {
-        println("Архив $name")
-        println("0 - создать заметку")
+        val stringBuilder: StringBuilder = java.lang.StringBuilder()
+        stringBuilder.append("Архив $name\n")
+        stringBuilder.append("0 - создать заметку\n")
         var count = 1
-        for (note in notes) {
-            println("${count++} - ${note.name}")
-        }
-        println("${count++} - назад")
+        notes.all { stringBuilder.append("${count++} - ${it.name}\n").isNotEmpty() }
+        stringBuilder.append("$count - назад")
+        println(stringBuilder.toString())
     }
 }

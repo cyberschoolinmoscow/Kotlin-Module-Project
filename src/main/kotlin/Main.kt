@@ -1,11 +1,9 @@
 import java.util.Scanner
 
-var archives = mutableListOf<Archive>()
-
-class Window(var type: Option) {
+class Menu(private var type: Option) {
     enum class Option(val message: String) {
         ARCHIVES(message = "Введите команду цифрой."),
-        CREATE_ARCHIVE(message = "Введите название архива или ${archives.size ?: 1}, чтобы вернуться назад."),
+        CREATE_ARCHIVE(message = "Введите название архива или 0, чтобы вернуться назад."),
         ARCHIVE(message = "Введите команду цифрой."),
         CREATE_NOTE(message = "Введите название заметки:"),
         NOTE(message = "Введите любой символ, чтобы вернуться назад. "),
@@ -13,67 +11,64 @@ class Window(var type: Option) {
     }
 
     companion object {
+        private const val EXIT_MENU_OPTION = "0"
+        private val scanner = Scanner(System.`in`)
+        private var archives = mutableListOf<Archive>()
         private var lastArchiveIndex: Int = 0
         private var lastNoteIndex: Int = 0
-        fun open(file: MyFile) {
-            file.open()
-        }
-
-        fun create(file: MyFile) {
-            if (file is Archive) {
-                archives.add(file)
-                println("Архив ${file.name} добавлен")
+        fun start() = Menu(Option.ARCHIVES).also { it.readCommand(it.type) }
+        fun input(): String = scanner.nextLine()
+        fun close() = scanner.close()
+        fun open(item: Openable) = item.open()
+        fun create(item: Openable) {
+            if (item is Archive) {
+                archives.add(item)
+                println("Архив ${item.name} добавлен")
                 printArchives()
-            } else if (file is Note) {
-                archives[lastArchiveIndex].notes.add(file)
-                println("Заметка ${file.name} добавлена в архив ${archives[lastArchiveIndex].name}")
+            } else if (item is Note) {
+                archives[lastArchiveIndex].notes.add(item)
+                println("Заметка ${item.name} добавлена в архив ${archives[lastArchiveIndex].name}")
             }
         }
-
         fun printArchives(): String {
-            var s = "Архивы заметок:\n"
+            val stringBuilder: StringBuilder = java.lang.StringBuilder()
+            stringBuilder.append("Архивы заметок:\n")
             var count = 0
-            s += "${count++} - создать\n"
-            for (arch in archives) {
-                s += "${count++} - ${arch.name}\n"
-            }
-            s += "${count++} - выход"
-            return s
-        }
-
-        fun start() {
-            Window(Option.ARCHIVES).readCommand()
+            stringBuilder.append("${count++} - создать\n")
+            archives.all { stringBuilder.append("${count++} - ${it.name}\n").isNotEmpty() }
+            stringBuilder.append("$count - выход")
+            return stringBuilder.toString()
         }
     }
 
-    private fun readCommand(type: Option=this.type) {
+    private fun readCommand(type: Option) {
         this.type = type
         println(type.message)
         when (type) {
             Option.ARCHIVES -> {
                 println(printArchives())
-                readItemCommand(Scanner(System.`in`).nextLine())
+                readItemCommand(input())
             }
 
             Option.CREATE_ARCHIVE -> {
-                createArchiveCommand(Scanner(System.`in`).nextLine())
+                createItemCommand(input())
             }
 
             Option.ARCHIVE -> {
                 open(archives[lastArchiveIndex])
-                readItemCommand(Scanner(System.`in`).nextLine())
+                readItemCommand(input())
             }
 
             Option.CREATE_NOTE -> {
-                createNoteCommand(Scanner(System.`in`).nextLine())
+                createItemCommand(input())
             }
 
             Option.NOTE -> {
                 open(archives[lastArchiveIndex].notes[lastNoteIndex])
-                readItemCommand(Scanner(System.`in`).nextLine())
+                readItemCommand(input())
             }
 
-            Option.CLOSE -> println()
+            Option.CLOSE -> close()
         }
     }
 
@@ -86,18 +81,19 @@ class Window(var type: Option) {
 
             try {
                 if (command.isNullOrBlank()) {
-                    readCommand()
+                    readCommand(type)
                 } else
-                    if (command.toInt() == 0) {
-                        var option =
+                    if (command.toInt() < 0) {
+                        showErrorMessage()
+                    } else if (command.toInt() == 0) {
+                        val option =
                             if (type == Option.ARCHIVES) Option.CREATE_ARCHIVE else Option.CREATE_NOTE
                         readCommand(option)
                     } else if (command.toInt() == number + 1) {
-                        var option = if (type == Option.ARCHIVES) Option.CLOSE else Option.ARCHIVES
-
+                        val option = if (type == Option.ARCHIVES) Option.CLOSE else Option.ARCHIVES
                         readCommand(option)
                     } else if (command.toInt() <= number) {
-                        var option = if (type == Option.ARCHIVES) Option.ARCHIVE else Option.NOTE
+                        val option = if (type == Option.ARCHIVES) Option.ARCHIVE else Option.NOTE
                         if (type == Option.ARCHIVES) {
                             lastArchiveIndex = command.toInt() - 1
                         } else {
@@ -107,47 +103,40 @@ class Window(var type: Option) {
                     } else {
                         showErrorMessage()
                     }
-            } catch (e: java.lang.Exception) {
+            } catch (e: NumberFormatException) {
                 showErrorMessage()
             }
         }
     }
 
-    private fun createArchiveCommand(command: String?) {
-        if (command.isNullOrBlank()) {
-            readCommand()
-        } else
-            if (command == "0") {
-                readCommand(Option.ARCHIVES)
-            } else {
-                val archive = Archive(command)
-                create(archive)
-                readCommand(Option.ARCHIVES)
-            }
-    }
-
-    private fun createNoteCommand(name: String?) {
+    private fun createItemCommand(name: String?) {
         if (name.isNullOrBlank()) {
-            readCommand()
+            readCommand(type)
+            return
+        } else if (type == Option.CREATE_ARCHIVE) {
+            if (name != EXIT_MENU_OPTION) {
+                create(Archive(name))
+            }
         } else {
             println("Введите текст заметки")
-            var text = Scanner(System.`in`).nextLine()
-            if (text.isNullOrBlank()) {
-                createNoteCommand(name)
+            val text = input()
+            if (text.isBlank()) {
+                createItemCommand(name)
+                return
             } else {
-                var note = Note(name, text)
-                create(note)
-                readCommand(Option.ARCHIVE)
+                create(Note(name, text))
             }
         }
+        val option = if (type == Option.CREATE_ARCHIVE) Option.ARCHIVES else Option.ARCHIVE
+        readCommand(option)
     }
 
     private fun showErrorMessage() {
         println("Ошибка. Введите корректную команду.")
-        readCommand()
+        readCommand(type)
     }
 }
 
-fun main(args: Array<String>) {
-    Window.start()
+fun main() {
+    Menu.start()
 }
